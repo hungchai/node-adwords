@@ -1,8 +1,9 @@
 # Node Adwords Api
 
 This is an unofficial Adwords sdk for NodeJS > 3.0. This Api mirrors the official
-PHP api pretty well so you can always look at that documentation if
-something doesn't stand out.
+api pretty well so you can always look at the
+[Adwords documentation](https://developers.google.com/adwords/api/docs/reference/)
+and even the PHP sdk if something doesn't stand out.
 
 This API is the first feature complete Adwords Api for Node.
 
@@ -45,7 +46,7 @@ const AdwordsUser = require('node-adwords').AdwordsUser;
 const AdwordsConstants = require('node-adwords').AdwordsConstants;
 
 let user = new AdwordsUser({...});
-let campaignService = user.getService('CampaignService', 'v201609')
+let campaignService = user.getService('CampaignService', 'v201702')
 
 //create selector
 let selector = {
@@ -70,13 +71,14 @@ regular api.
 const AdwordsReport = require('node-adwords').AdwordsReport;
 
 let report = new AdwordsReport({/** same config as AdwordsUser above */});
-report.getReport('v201609', {
+report.getReport('v201702', {
     reportName: 'Custom Adgroup Performance Report',
     reportType: 'CAMPAIGN_PERFORMANCE_REPORT',
     fields: ['CampaignId', 'Impressions', 'Clicks', 'Cost'],
     filters: [
         {field: 'CampaignStatus', operator: 'IN', values: ['ENABLED', 'PAUSED']}
     ],
+    dateRangeType: 'CUSTOM_DATE', //defaults to CUSTOM_DATE. startDate or endDate required for CUSTOM_DATE
     startDate: new Date("07/10/2016"),
     endDate: new Date(),
     format: 'CSV' //defaults to CSV
@@ -88,7 +90,7 @@ report.getReport('v201609', {
 You can also pass in additional headers in case you need to remove the header rows
 
 ```js
-report.getReport('v201609', {
+report.getReport('v201702', {
     ...
     additionalHeaders: {
         skipReportHeader: true,
@@ -100,7 +102,38 @@ report.getReport('v201609', {
 ```
 
 
+## Adwords Query Language (AWQL)
 
+If you do not want to use the reporting / getters, you can also get the data via
+AWQL.
+
+```js
+const AdwordsUser = require('node-adwords').AdwordsUser;
+const AdwordsConstants = require('node-adwords').AdwordsConstants;
+
+let user = new AdwordsUser({...});
+let campaignService = user.getService('CampaignService')
+
+let params = {
+    query: 'SELECT Id, Name WHERE Status = "ENABLED" ORDER BY Name DESC LIMIT 0,50'
+};
+
+campaignService.get(params, (error, result) => {
+    console.log(error, result);
+})
+```
+
+You can also use AWQL with Performance Reports
+
+```js
+let report = new AdwordsReport({/** same config as AdwordsUser above */});
+report.getReport('v201702', {
+    query: 'SELECT Criteria FROM KEYWORDS_PERFORMANCE_REPORT DURING 20170101,20170325',
+    format: 'CSV'
+});
+
+
+```
 ## Authentication
 Internally, the node-adwords sdk use the [official google api client](https://github.com/google/google-api-nodejs-client)
 for authenticating users. Using the `https://www.googleapis.com/auth/adwords` scope.
@@ -108,7 +141,7 @@ The node-adwords sdk has some helper methods for you to authenticate if you do n
 need additional scopes.
 
 ```js
-const AdwordsUser = require('node-adwords').AdwordsAuth;
+const AdwordsAuth = require('node-adwords').AdwordsAuth;
 
 let auth = new AdwordsAuth({
     client_id: 'INSERT_OAUTH2_CLIENT_ID_HERE', //this is the api console client_id
@@ -128,6 +161,32 @@ app.get('/adwords/auth', (req, res) => {
 
 ```
 
+# Troubleshooting
+
+## Adwords.Types
+Sometimes, in the Adwords documentation, you will see "Specify xsi:type instead".
+As of version 201609.1.0, you can specify this in the request as another attribute.
+
+```js
+let operation = {
+    operator: 'ADD',
+    operand: {
+        campaignId: '1234567',
+        criterion: {
+            type: 'IP_BLOCK',
+            'xsi:type': 'IpBlock',
+            ipAddress: '123.12.123.12',
+        },
+        'xsi:type': 'NegativeCampaignCriterion'
+    }
+}
+```
+
+## Ordering
+Because the Adwords Api uses a non-standard SOAP implementation, the order of the
+elements are required to be in the order of the elements in the documentation.
+When drafting api calls, make sure the order matches the order in the documentation.
+For more information, see [issue #20](https://github.com/ChrisAlvares/node-adwords/issues/20)
 
 ## Testing
 For testing, you will need a refresh token as well as a developer token.

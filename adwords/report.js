@@ -42,19 +42,16 @@ class AdwordsReport {
             if (error) {
                 return callback(error);
             }
-            var b = new AdwordsReportBuilder();
-            var xml = b.buildReport(report);
+
             request({
                 uri: 'https://adwords.google.com/api/adwords/reportdownload/' + apiVersion,
                 method: 'POST',
                 headers: headers,
-                form: {
-                    '__rdxml': xml
-                }
+                form: this.buildReportBody(report)
             }, (error, response, body) => {
-                if (error || -1 !== body.indexOf('<?xml')) {
+                if (error || this.reportBodyContainsError(report, body)) {
                     error = error || body;
-                    if (-1 !== error.toString().indexOf(AdwordsConstants.OAUTH_ERROR)) {
+                    if (-1 !== error.toString().indexOf(AdwordsConstants.OAUTH_ERROR) && retryRequest) {
                         this.credentials.access_token = null;
                         return this.getReport(apiVersion, report, callback, false);
                     }
@@ -65,6 +62,18 @@ class AdwordsReport {
         });
     }
 
+    /**
+     * Determines if the body contains an error message
+     * @param report {object} the report object
+     * @param body {string} the body string
+     * @return {boolean}
+     */
+    reportBodyContainsError(report, body) {
+        if ('xml' !== (''+report.format).toLowerCase() && -1 !== body.indexOf('<?xml')) {
+            return true;
+        }
+        return false;
+    }
 
     /**
      * Gets the headers for the request
@@ -102,6 +111,28 @@ class AdwordsReport {
             this.credentials.access_token = tokens.access_token;
             callback(null, this.credentials.access_token);
         });
+    }
+
+    /**
+     * Builds the report body
+     * @access protected
+     * @param report {object} the adwords report
+     * @return {object} a formated formData
+     */
+    buildReportBody(report) {
+        var b = new AdwordsReportBuilder();
+        var form;
+        if (report.query) {
+            form = {
+                '__rdquery': report.query,
+                '__fmt': report.format || 'CSV'
+            };
+        } else {
+            form = {
+                '__rdxml': b.buildReport(report)
+            }
+        }
+        return form;
     }
 
 
